@@ -1,15 +1,26 @@
 from dotenv import load_dotenv
-
-# import os
+from langchain_core.prompts import PromptTemplate
+#from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
+# from langchain_ollama import ChatOllama ### ChatOllama is client for http://localhost:11434
 
 load_dotenv()
 
-# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-
 def main():
-    print("Hello from langchain-course!")
-    # print(OPENAI_API_KEY)
+    # print("Hello from langchain-course!")
+    prompt = PromptTemplate(
+    template="What is the capital of {country}?",
+    input_variables=["country"],
+    )
+    
+    # llm = ChatOllama(model="llama3.2", temperature=0.0)
+    # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
+    llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0.0)
+
+    chain = prompt | llm
+
+    result = chain.invoke({"country": "France"})
+    print(result)
 
 
 if __name__ == "__main__":
