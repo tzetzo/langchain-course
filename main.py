@@ -1,10 +1,7 @@
-# https://smith.langchain.com for tracing
-# Requires TAVILY_API_KEY, GROQ_API_KEY, LANGSMITH_API_KEY in .env
-
 import json
-import re
 
 from dotenv import load_dotenv
+from langchain_core.messages import ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda
 from langchain_groq import ChatGroq
@@ -14,165 +11,98 @@ from schemas import AgentResponse
 
 load_dotenv()
 
-# -------------------------------------------------------------------
-# 1. LLM
-# -------------------------------------------------------------------
+# ------------------------------------------------------------
+# 1. LLM (tool-calling enabled)
+# ------------------------------------------------------------
 llm = ChatGroq(
-    model="llama-3.3-70b-versatile",  # https://console.groq.com/docs/models
+    model="llama-3.3-70b-versatile",
     temperature=0.0,
 )
 
-# -------------------------------------------------------------------
+# ------------------------------------------------------------
 # 2. Tools
-# -------------------------------------------------------------------
+# ------------------------------------------------------------
 tools = [TavilySearch()]
-tool_map = {t.name: t for t in tools}
 
-tool_descriptions = "\n".join(f"{t.name}: {t.description}" for t in tools)
-tool_names = ", ".join(t.name for t in tools)
+llm_with_tools = llm.bind_tools(tools)
 
-def run_tool(name: str, tool_input: str):
-    if name not in tool_map:
-        return f"Invalid tool: {name}"
-    try:
-        return tool_map[name].invoke({"query": tool_input})
-    except Exception as e:
-        return f"Tool error: {e}"
 
-# -------------------------------------------------------------------
-# 3. Output schema instructions
-# -------------------------------------------------------------------
-schema = AgentResponse.model_json_schema()
+# ------------------------------------------------------------
+# 3. Prompt (NO ReAct)
+# ------------------------------------------------------------
+def escape_curly_braces(text: str) -> str:
+    return text.replace("{", "{{").replace("}", "}}")
 
-format_instructions = f"""
-Return a JSON object that conforms to this schema:
 
-{json.dumps(schema, indent=2)}
+schema = escape_curly_braces(json.dumps(AgentResponse.model_json_schema(), indent=2))
 
-Rules:
-- Only output a JSON INSTANCE, not the schema.
-- The "answer" field must be a single-line string.
-- The "sources" field must be a list of objects with only a "url".
-- Do not include markdown, backticks, or explanations.
-"""
-
-# -------------------------------------------------------------------
-# 4. ReAct Prompt; taken from https://smith.langchain.com/hub/hwchase17/react
-# -------------------------------------------------------------------
-prompt = ChatPromptTemplate.from_template(
-    """
-Answer the following question. You have access to the following tools:
-
-{tools}
-
-Use this format:
-
-Question: the question
-Thought: reasoning about next step
-Action: one of [{tool_names}]
-Action Input: input to the action
-Observation: tool result
-... (repeat as needed)
-Thought: I now know the final answer
-Final Answer: valid JSON matching these instructions:
-{format_instructions}
-
-Begin!
-
-Question: {input}
-Thought:{agent_scratchpad}
-"""
+prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "You are an AI assistant that may call tools to gather information. "
+            "Use tools when needed. When you are done, return ONLY valid JSON "
+            "matching this schema:\n\n"
+            f"{json.dumps(schema, indent=2)}\n\n"
+            "Rules:\n"
+            "- Output ONLY a JSON instance\n"
+            "- No markdown, no backticks\n"
+            "- The answer must be concise\n",
+        ),
+        ("human", "{input}"),
+    ]
 )
 
-# -------------------------------------------------------------------
-# 5. Parsing helpers
-# -------------------------------------------------------------------
-ACTION_RE = re.compile(
-    r"Action:\s*(?P<action>[^\n]+)\nAction Input:\s*(?P<input>[^\n]+)",
-    re.MULTILINE,
-)
 
-JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
+# ------------------------------------------------------------
+# 4. Tool-calling loop (agent runtime)
+# ------------------------------------------------------------
+def tool_calling_loop(input_text: str):
+    messages = prompt.invoke({"input": input_text}).to_messages()
 
-# -------------------------------------------------------------------
-# 6. ReAct loop (THE AGENT)
-# -------------------------------------------------------------------
-def react_loop(input_text: str):
-    scratchpad = ""
-    steps = 0
-    max_steps = 8
+    while True:
+        response = llm_with_tools.invoke(messages)
 
-    formatted = prompt.invoke(
-        {
-            "input": input_text,
-            "tools": tool_descriptions,
-            "tool_names": tool_names,
-            "format_instructions": format_instructions,
-            "agent_scratchpad": scratchpad,
-        }
-    )
+        # Case 1: model wants to call a tool
+        if response.tool_calls:
+            messages.append(response)
 
-    response = llm.invoke(formatted)
-    text = response.content
+            for call in response.tool_calls:
+                tool_name = call["name"]
+                tool_args = call["args"]
+                tool_call_id = call["id"]
 
-    while "Final Answer:" not in text and steps < max_steps:
-        steps += 1
+                tool = next(t for t in tools if t.name == tool_name)
+                observation = tool.invoke(tool_args)
 
-        match = ACTION_RE.search(text)
-        if not match:
-            return {"error": "Failed to parse action", "raw_output": text}
+                messages.append(
+                    ToolMessage(
+                        content=json.dumps(observation),
+                        tool_call_id=tool_call_id,
+                    )
+                )
+            continue
 
-        action = match.group("action")
-        action_input = match.group("input")
-
-        observation = run_tool(action, action_input)
-
-        scratchpad += (
-            f"\nThought:\nAction: {action}\n"
-            f"Action Input: {action_input}\n"
-            f"Observation: {observation}\n"
-        )
-
-        followup = prompt.invoke(
-            {
-                "input": input_text,
-                "tools": tool_descriptions,
-                "tool_names": tool_names,
-                "format_instructions": format_instructions,
-                "agent_scratchpad": scratchpad,
+        # Case 2: final answer
+        try:
+            data = json.loads(response.content)
+            parsed = AgentResponse(**data)
+            return parsed.model_dump()
+        except Exception as e:
+            return {
+                "error": f"Invalid final JSON: {e}",
+                "raw_output": response.content,
             }
-        )
 
-        response = llm.invoke(followup)
-        text = response.content
 
-    if steps >= max_steps:
-        return {"error": "Max steps exceeded", "raw_output": text}
+# ------------------------------------------------------------
+# 5. LCEL wrapper
+# ------------------------------------------------------------
+chain = RunnableLambda(lambda x: tool_calling_loop(x["input"]))
 
-    # ----------------------------------------------------------------
-    # 7. Final JSON extraction + validation
-    # ----------------------------------------------------------------
-    try:
-        final_part = text.split("Final Answer:", 1)[1]
-        match = JSON_RE.search(final_part)
-        if not match:
-            raise ValueError("No JSON object found")
-
-        data = json.loads(match.group())
-        parsed = AgentResponse(**data)
-        return parsed.model_dump()
-
-    except Exception as e:
-        return {"error": f"Failed to parse JSON: {e}", "raw_output": text}
-
-# -------------------------------------------------------------------
-# 8. LCEL wrapper
-# -------------------------------------------------------------------
-chain = RunnableLambda(lambda x: react_loop(x["input"]))
-
-# -------------------------------------------------------------------
-# 9. Run
-# -------------------------------------------------------------------
+# ------------------------------------------------------------
+# 6. Run
+# ------------------------------------------------------------
 result = chain.invoke(
     {
         "input": (
