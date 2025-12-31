@@ -1,3 +1,8 @@
+# this file is used for the Ingestion - converting text into vectors and saving them in Pinecone!
+# rag_query.py is used for the Query!
+# article used to embed in Pinecone: https://medium.com/@EjiroOnose/vector-database-what-is-it-and-why-you-should-know-it-ae7e7dca82a4
+# to verify the LLM is using Pinecone when answering user questions ask it a question exactly as it appears in the article - it should provide 1:1 answer (start rag_query.py for this purpose)!!!
+
 import os
 from dotenv import load_dotenv
 
