@@ -138,7 +138,7 @@ print(f"Total embeddings computed: {len(all_embeddings)}")
 # -----------------------------------------------------------------------------
 
 pc = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
-index_name = os.environ["INDEX_NAME"]
+index_name = os.environ["PINECONE_INDEX_NAME"]
 env = os.environ["PINECONE_ENVIRONMENT"]
 
 existing_indexes = pc.list_indexes().names()

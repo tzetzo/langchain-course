@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "apify-client>=2.3.0",
     "dotenv>=0.9.9",
+    "langchain-groq>=1.1.1",
     "langchain-huggingface>=1.2.0",
     "langchain-pinecone>=0.2.13",
     "langchain-text-splitters>=1.1.0",
