@@ -1,0 +1,14 @@
+[project]
+name = "langchain-course"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "apify-client>=2.3.0",
+    "dotenv>=0.9.9",
+    "langchain-huggingface>=1.2.0",
+    "langchain-pinecone>=0.2.13",
+    "langchain-text-splitters>=1.1.0",
+    "sentence-transformers>=5.2.0",
+]
