@@ -72,11 +72,13 @@ rag_chain = (
 )
 
 # 8. Helper function
-def answer_question(question: str) -> str:
-    return rag_chain.invoke(question)
+def answer_question(question: str, history: str = "") -> str:
+    full_input = f"{history}\nUser: {question}"
+    return rag_chain.invoke(full_input)
 
-if __name__ == "__main__":
-    q = input("Ask a question: ")
-    print("\n--- Answer ---\n")
-    print(answer_question(q))
-    print("\n--------------\n")
+# streamlit_app.py handles the input so the following is not needed!
+# if __name__ == "__main__":
+    # q = input("Ask a question: ")
+    # print("\n--- Answer ---\n")
+    # print(answer_question(q))
+    # print("\n--------------\n")

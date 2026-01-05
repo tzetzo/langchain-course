@@ -12,4 +12,5 @@ dependencies = [
     "langchain-pinecone>=0.2.13",
     "langchain-text-splitters>=1.1.0",
     "sentence-transformers>=5.2.0",
+    "streamlit>=1.52.2",
 ]
