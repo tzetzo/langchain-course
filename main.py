@@ -38,13 +38,13 @@
 ##################################################################################################
 
 ##################################################################################################
-# testing the controller:
-# Controller with NO file (should route to Python agent)
-from agents.controller import CodeInterpreterController
+# # testing the controller:
+# from agents.controller import CodeInterpreterController
 
-controller = CodeInterpreterController()
+# controller = CodeInterpreterController()
 
 ##---------------------------------------------------------------------------------------------------
+# Controller with NO file (should route to Python agent)
 # result = controller.run(
 #     user_input="print('Hello from Python agent')"
 # )
@@ -78,8 +78,54 @@ controller = CodeInterpreterController()
 # print("LOGS:\n", result.logs)
 # print("FILES:\n", result.files)
 ##---------------------------------------------------------------------------------------------------
-# Controller response structure
-response = controller.run("1+1")
+# # Controller response structure
+# response = controller.run("1+1")
+
+# print(type(response))
+# print(response.logs[:200])
+# print(response.files)
+##################################################################################################
+
+##################################################################################################
+# Testing the graph
+from graph.code_interpreter_graph import run_code_interpreter
+
+# ##---------------------------------------------------------------------------------------------------
+# # Run the graph with NO file (should route to Python agent)
+# result = run_code_interpreter(
+#     user_input="print('Hello from the graph layer')"
+# )
+
+# print("LOGS:\n", result.logs)
+# print("FILES:\n", result.files)
+##---------------------------------------------------------------------------------------------------
+# # Run the graph with a CSV file (should route to CSV agent)
+# with open("test.csv", "rb") as f:
+#     csv_bytes = f.read()
+
+# result = run_code_interpreter(
+#     user_input="Load the CSV and save df.describe() as summary.csv",
+#     file_bytes=csv_bytes,
+#     filename="test.csv"
+# )
+
+# print("LOGS:\n", result.logs)
+# print("FILES:\n", result.files)
+##---------------------------------------------------------------------------------------------------
+# # Run the graph with a non‑CSV file (should route to Python agent)
+# fake_bytes = b"hello world"
+
+# result = run_code_interpreter(
+#     user_input="print('Graph should route to python agent')",
+#     file_bytes=fake_bytes,
+#     filename="notes.txt"
+# )
+
+# print("LOGS:\n", result.logs)
+# print("FILES:\n", result.files)
+##---------------------------------------------------------------------------------------------------
+# Validate the graph state and response object
+response = run_code_interpreter("1+1")
 
 print(type(response))
 print(response.logs[:200])
