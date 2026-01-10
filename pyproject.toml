@@ -10,4 +10,5 @@ dependencies = [
     "langgraph>=1.0.5",
     "python-dotenv>=1.2.1",
     "qrcode>=8.2",
+    "streamlit>=1.52.2",
 ]
