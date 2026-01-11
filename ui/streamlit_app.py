@@ -1,90 +1,66 @@
-# Run the app from project root directory with:
-# streamlit run ui/streamlit_app.py
-import sys, os
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
-
 import streamlit as st
-from graph.code_interpreter_graph import run_code_interpreter
+import io
+import sys
+import os
 
-st.set_page_config(
-    page_title="Code Interpreter",
-    page_icon="🧠",
-    layout="wide"
-)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from agents.controller import CodeInterpreterController
 
-st.title("🧠 Code Interpreter")
-st.write("Upload a file (optional) and enter your instructions below.")
+st.set_page_config(page_title="QR Batch Generator 2026", layout="wide")
 
+st.title("🚀 AI Batch QR Code Generator")
 
-# ---------------------------------------------------------
-# 1. User Input
-# ---------------------------------------------------------
+if "controller" not in st.session_state:
+    st.session_state.controller = CodeInterpreterController()
+
+with st.sidebar:
+    st.header("Upload Data")
+    uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+    file_bytes = uploaded_file.getvalue() if uploaded_file else None
 
 user_input = st.text_area(
-    "Instructions",
-    placeholder="e.g., Load the CSV and summarize it, or run Python code…",
-    height=150
+    "What should I generate?", placeholder="Generate 3 QRs for..."
 )
 
-uploaded_file = st.file_uploader(
-    "Upload a file (optional)",
-    type=["csv", "txt", "json", "py"]
-)
-
-file_bytes = None
-filename = None
-
-if uploaded_file:
-    file_bytes = uploaded_file.read()
-    filename = uploaded_file.name
-
-
-# ---------------------------------------------------------
-# 2. Run Button
-# ---------------------------------------------------------
-
-if st.button("Run Code Interpreter"):
-    if not user_input.strip():
-        st.error("Please enter instructions before running.")
-    else:
-        with st.spinner("Running…"):
-            response = run_code_interpreter(
+if st.button("Run Generator", type="primary"):
+    with st.status("Processing...") as status:
+        try:
+            # We run the controller
+            response = st.session_state.controller.run(
                 user_input=user_input,
                 file_bytes=file_bytes,
-                filename=filename
+                filename=uploaded_file.name if uploaded_file else None,
             )
 
-        # ---------------------------------------------------------
-        # 3. Display Logs
-        # ---------------------------------------------------------
+            # --- Results Layout ---
+            col1, col2 = st.columns(2)
 
-        st.subheader("Logs")
-        st.code(response.logs, language="text")
+            with col1:
+                st.subheader("Sandbox Output")
+                # This helps you see if the AI actually printed the BASE64 markers
+                st.text_area("Raw Logs", value=response.logs, height=300)
 
-        # ---------------------------------------------------------
-        # 4. Display Generated Files
-        # ---------------------------------------------------------
+            with col2:
+                st.subheader("Generated Files")
+                if not response.files:
+                    st.error(
+                        "No files found. Check logs to see if the AI printed 'BASE64:' markers."
+                    )
+                else:
+                    for f in response.files:
+                        st.write(f"**{f.name}**")
+                        if f.name.lower().endswith((".png", ".jpg")):
+                            img_stream = io.BytesIO(f.data)
+                            img_stream.seek(0)
+                            # Updated for 2026 'stretch' syntax
+                            st.image(img_stream, width="stretch", output_format="PNG")
 
-        if response.files:
-            st.subheader("Generated Files")
+                            st.download_button(
+                                "Download", f.data, f.name, "image/png", key=f.name
+                            )
+                        st.divider()
 
-            for fpath in response.files:
-                # Skip system files
-                if any(x in fpath for x in [".bashrc", ".profile", ".bash_logout"]):
-                    continue
-
-                # Read file from sandbox via controller logs
-                st.write(f"📄 {fpath}")
-
-                # Download button
-                try:
-                    with open(fpath, "rb") as f:
-                        st.download_button(
-                            label=f"Download {fpath.split('/')[-1]}",
-                            data=f.read(),
-                            file_name=fpath.split("/")[-1]
-                        )
-                except Exception:
-                    st.warning(f"Unable to load file: {fpath}")
+            status.update(label="Complete!", state="complete")
+        except Exception as e:
+            st.error(f"Error: {e}")
+            status.update(label="Failed", state="error")

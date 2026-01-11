@@ -1,104 +1,94 @@
-# python_agent.py
-
 import os
+import re
 from dotenv import load_dotenv
-
 from langchain_groq import ChatGroq
-from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
-from e2b_code_interpreter import Sandbox
 
 load_dotenv()
-
-WRITABLE_DIR = "/home/user"   # <-- The ONLY reliable writable directory
-
-
-@tool
-def run_python(code: str) -> str:
-    """
-    Executes Python code inside an E2B Code Interpreter sandbox.
-    Files must be saved to /home/user (the writable directory).
-    """
-    sandbox = Sandbox.create(api_key=os.environ["E2B_API_KEY"])
-
-    try:
-        # Replace any LLM paths with the correct writable directory
-        code = code.replace("/workspace", WRITABLE_DIR)
-        code = code.replace("/mnt/data", WRITABLE_DIR)
-        code = code.replace("/path/to/writable/directory", WRITABLE_DIR)
-
-        # First execution attempt
-        execution = sandbox.run_code(code)
-
-        # Detect missing module
-        if execution.error and execution.error.name == "ModuleNotFoundError":
-            missing = execution.error.value.split("'")[1]
-
-            # Install missing module
-            sandbox.run_code(f"pip install {missing}")
-
-            # Retry
-            execution = sandbox.run_code(code)
-
-        output = ""
-
-        if execution.logs:
-            output += f"LOGS:\n{execution.logs}\n"
-
-        if execution.error:
-            output += f"\nERROR:\n{execution.error.traceback}\n"
-
-        # List generated files
-        files = sandbox.files.list(WRITABLE_DIR)
-        if files:
-            output += "\nGenerated files:\n"
-            for f in files:
-                output += f"- {f.path}\n"
-
-        return output or "Code executed with no output."
-
-    finally:
-        sandbox.kill()
-
-
-llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    groq_api_key=os.environ["GROQ_API_KEY"]
-)
+WRITABLE_DIR = "/home/user"
+llm = ChatGroq(model="llama-3.3-70b-versatile", groq_api_key=os.environ["GROQ_API_KEY"])
 
 SYSTEM_PROMPT = f"""
-You are a Python coding assistant.
-Output ONLY valid Python code.
-Do NOT use backticks.
-Do NOT use markdown.
-Do NOT explain anything.
-Do NOT add comments.
+You are a Python Expert. Your goal is to generate QR codes in a headless sandbox.
 
-IMPORTANT:
-- The ONLY writable directory is {WRITABLE_DIR}
-- ALWAYS save files to {WRITABLE_DIR}
-- Use absolute paths like "{WRITABLE_DIR}/filename.png"
+### BEGIN CODE
+
+Rules:
+1. MANDATORY EXECUTION: You must NOT just define functions. You MUST include a main execution block at the bottom of your script that calls your functions.
+2. BASE64 PROTOCOL: To prevent binary corruption, you MUST print images as Base64.
+   
+   Use this exact structure:
+   import qrcode
+   import base64
+   from io import BytesIO
+   from PIL import Image
+
+   def generate():
+       qr = qrcode.QRCode(version=1, box_size=10, border=5)
+       qr.add_data("URL_OR_DATA")
+       img = qr.make_image().convert('RGB')
+       
+       # 1. Save to disk
+       img.save("{WRITABLE_DIR}/qr_code.png", "PNG")
+       
+       # 2. Print Base64 for the controller
+       buffered = BytesIO()
+       img.save(buffered, format="PNG")
+       img_str = base64.b64encode(buffered.getvalue()).decode()
+       print(f"FILENAME:qr_code.png")
+       print(f"BASE64:{{img_str}}")
+
+   if __name__ == "__main__":
+       generate()
+
+3. Constraints: No markdown backticks. Save to {WRITABLE_DIR}.
 """
 
 
-def clean_code(raw: str) -> str:
-    code = raw.strip()
-    if code.startswith("```"):
-        code = code.split("```")[1]
-        code = code.replace("python", "", 1)
-        code = code.split("```")[0]
-    return code.strip()
+def extract_code_from_llm_output(text: str) -> str:
+    """
+    Highly resilient code extraction.
+    Prioritizes markers, falls back to markdown, and finally to raw text.
+    """
+    # 1. Try our custom marker
+    if "### BEGIN CODE" in text:
+        text = text.split("### BEGIN CODE")[-1]
+
+    # 2. Try to find standard markdown blocks
+    if "```python" in text:
+        text = text.split("```python")[-1].split("```")[0]
+    elif "```" in text:
+        text = text.split("```")[-1].split("```")[0]
+
+    # 3. Aggressive cleanup of conversational prose
+    lines = text.split("\n")
+    cleaned_lines = []
+    start_collecting = False
+
+    # Common starting points for Python scripts
+    code_starters = ("import", "from", "def", "class", "qr", "df", "img")
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            if start_collecting:
+                cleaned_lines.append(line)
+            continue
+
+        if any(stripped.startswith(s) for s in code_starters):
+            start_collecting = True
+
+        if start_collecting:
+            # Stop if we hit conversational closing text
+            if stripped.startswith(("Note:", "This script", "Hope this", "Here is")):
+                break
+            cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines).strip()
 
 
-def python_agent(user_input: str) -> str:
-    code_response = llm.invoke([
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=user_input)
-    ])
-
-    raw_code = code_response.content
-    print("RAW LLM OUTPUT:", repr(raw_code))
-
-    code = clean_code(raw_code)
-
-    return run_python.invoke({"code": code})
+def generate_python_code(user_input: str) -> str:
+    response = llm.invoke(
+        [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_input)]
+    )
+    return extract_code_from_llm_output(response.content)

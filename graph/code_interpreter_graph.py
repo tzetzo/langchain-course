@@ -10,6 +10,7 @@ from agents.controller import CodeInterpreterController, ControllerResponse
 # 1. Define the graph state
 # ---------------------------------------------------------
 
+
 class GraphState(TypedDict, total=False):
     user_input: str
     file_bytes: Optional[bytes]
@@ -20,6 +21,7 @@ class GraphState(TypedDict, total=False):
 # ---------------------------------------------------------
 # 2. Nodes
 # ---------------------------------------------------------
+
 
 def input_node(state: GraphState) -> GraphState:
     """
@@ -37,7 +39,7 @@ def controller_node(state: GraphState) -> GraphState:
     response = controller.run(
         user_input=state["user_input"],
         file_bytes=state.get("file_bytes"),
-        filename=state.get("filename")
+        filename=state.get("filename"),
     )
 
     state["controller_response"] = response
@@ -54,6 +56,7 @@ def output_node(state: GraphState) -> GraphState:
 # ---------------------------------------------------------
 # 3. Build the graph
 # ---------------------------------------------------------
+
 
 def create_code_interpreter_graph():
     graph = StateGraph(GraphState)
@@ -75,13 +78,16 @@ def create_code_interpreter_graph():
 # 4. Helper for running the graph
 # ---------------------------------------------------------
 
-def run_code_interpreter(user_input: str, file_bytes: bytes | None = None, filename: str | None = None):
+
+def run_code_interpreter(
+    user_input: str, file_bytes: bytes | None = None, filename: str | None = None
+):
     graph = create_code_interpreter_graph()
 
     initial_state: GraphState = {
         "user_input": user_input,
         "file_bytes": file_bytes,
-        "filename": filename
+        "filename": filename,
     }
 
     final_state = graph.invoke(initial_state)
