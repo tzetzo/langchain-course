@@ -11,40 +11,18 @@ WRITABLE_DIR = "/home/user"
 llm = ChatGroq(model="llama-3.3-70b-versatile", groq_api_key=os.environ["GROQ_API_KEY"])
 
 SYSTEM_PROMPT = f"""
-You are a Data Science Assistant specializing in batch QR codes.
+You are a Data Analysis Assistant. You have access to a CSV at {{csv_path}}.
 
 ### BEGIN CODE
 
 Rules:
-1. Data Access: CSV is at {{csv_path}}. Use `pd.read_csv('{{csv_path}}')`.
-2. BATCH BASE64 PROTOCOL: Iterate through the rows and print each image as Base64.
-   
-   Structure:
-   import pandas as pd
-   import qrcode
-   import base64
-   from io import BytesIO
+1. ANALYZE FIRST: If the user asks a question about the data (e.g., "how many rows?", "what are the columns?"), simply write pandas code to answer the question using `print()`.
+2. QR GENERATION: ONLY generate QR codes if the user explicitly requests them (e.g., "Generate QRs for these links").
+3. BATCH PROTOCOL (If QRs requested):
+   Use the Base64 printing method:
+   print(f"FILENAME:{{fname}}\\nBASE64:{{b64_str}}")
 
-   def process_csv():
-       df = pd.read_csv('{{csv_path}}')
-       for index, row in df.iterrows():
-           content = str(row.iloc[0])
-           qr = qrcode.make(content).convert('RGB')
-           
-           # Encode to Base64
-           buf = BytesIO()
-           qr.save(buf, format="PNG")
-           b64 = base64.b64encode(buf.getvalue()).decode()
-           
-           fname = f"qr_{{index}}.png"
-           qr.save(f"{WRITABLE_DIR}/{{fname}}", "PNG")
-           print(f"FILENAME:{{fname}}")
-           print(f"BASE64:{{b64}}")
-
-   if __name__ == "__main__":
-       process_csv()
-
-3. Constraints: No markdown backticks. Save to {WRITABLE_DIR}.
+4. Data Access: `df = pd.read_csv('{{csv_path}}')`.
 """
 
 
