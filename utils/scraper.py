@@ -13,7 +13,8 @@ def scrape_linkedin_data(name: str) -> str:
     # Use TavilySearch for the most consistent LangChain integration
     search = TavilySearch(max_results=2, search_depth="advanced", include_images=True)
 
-    query = f"site:linkedin.com/in/ '{name}' current position, profile link and profile photo"
+    # Use escaped double quotes to force an exact character match
+    query = f'site:linkedin.com/in/ "{name}"'
 
     try:
         results = search.invoke(query)
