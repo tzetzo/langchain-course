@@ -11,9 +11,9 @@ def scrape_linkedin_data(name: str) -> str:
     Ensures we handle both dictionary and string return types.
     """
     # Use TavilySearch for the most consistent LangChain integration
-    search = TavilySearch(max_results=2, search_depth="advanced")
+    search = TavilySearch(max_results=2, search_depth="advanced", include_images=True)
 
-    query = f"site:linkedin.com/in/ '{name}' current position and profile link"
+    query = f"site:linkedin.com/in/ '{name}' current position, profile link and profile photo"
 
     try:
         results = search.invoke(query)

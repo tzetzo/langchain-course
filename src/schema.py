@@ -9,3 +9,6 @@ class PersonSummary(BaseModel):
     linkedin_url: str = Field(
         description="The direct URL to the person's LinkedIn profile."
     )
+    image_url: str = Field(
+        description="The URL of the person's profile photo, if available."
+    )

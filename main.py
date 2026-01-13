@@ -33,16 +33,21 @@ if st.button("Generate Summary") and name:
     data = result["final_json"]
 
     if data:
-        st.subheader(f"Results for {name}")
-        st.write(data.summary)
+        # Create a nice layout with image on the left, summary on the right
+        col1, col2 = st.columns([1, 3])
+
+        with col1:
+            if data.image_url:
+                st.image(data.image_url, use_container_width=True)
+            else:
+                st.write("👤")  # Fallback icon
+
+        with col2:
+            st.subheader(name)
+            st.write(data.summary)
 
         st.markdown("### 📌 Key Facts")
         for fact in data.facts:
             st.write(f"- {fact}")
 
-        # Add a clickable link
-        st.divider()
         st.link_button("🔗 View LinkedIn Profile", data.linkedin_url)
-
-        with st.expander("View Raw JSON"):
-            st.json(data.model_dump())

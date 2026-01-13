@@ -44,6 +44,7 @@ def summarize_node(state: GraphState):
     1. Write a 2-3 sentence summary for {person_name}.
     2. Identify 3 interesting professional facts.
     3. Extract the exact LinkedIn Profile URL for this person.
+    4. A profile image URL from the 'images' list in the data.
     
     If multiple URLs are present, choose the one that best matches a personal profile (linkedin.com/in/...).
     """
