@@ -37,12 +37,15 @@ def summarize_node(state: GraphState):
     structured_llm = llm.with_structured_output(PersonSummary)
 
     prompt = f"""
-    You are a professional researcher. Based on the following raw data from a LinkedIn search:
-    
+    You are a professional researcher. Based on the following search results:
     {raw_info}
     
-    Create a professional summary and identify 3 key facts about {person_name}.
-    If the data is insufficient, provide a summary based on what is available.
+    Task:
+    1. Write a 2-3 sentence summary for {person_name}.
+    2. Identify 3 interesting professional facts.
+    3. Extract the exact LinkedIn Profile URL for this person.
+    
+    If multiple URLs are present, choose the one that best matches a personal profile (linkedin.com/in/...).
     """
 
     try:

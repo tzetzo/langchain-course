@@ -13,9 +13,7 @@ def scrape_linkedin_data(name: str) -> str:
     # Use TavilySearch for the most consistent LangChain integration
     search = TavilySearch(max_results=2, search_depth="advanced")
 
-    query = (
-        f"site:linkedin.com/in/ '{name}' professional experience and education summary"
-    )
+    query = f"site:linkedin.com/in/ '{name}' current position and profile link"
 
     try:
         results = search.invoke(query)

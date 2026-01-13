@@ -29,13 +29,20 @@ if st.button("Generate Summary") and name:
         status.update(label="✅ Analysis Complete!", state="complete")
 
     # Display JSON results in a clean UI
+    # Inside the result display section of main.py
     data = result["final_json"]
-    st.subheader("Professional Summary")
-    st.write(data.summary)
 
-    st.subheader("Key Facts")
-    for fact in data.facts:
-        st.write(f"- {fact}")
+    if data:
+        st.subheader(f"Results for {name}")
+        st.write(data.summary)
 
-    st.divider()
-    st.json(data.model_dump())
+        st.markdown("### 📌 Key Facts")
+        for fact in data.facts:
+            st.write(f"- {fact}")
+
+        # Add a clickable link
+        st.divider()
+        st.link_button("🔗 View LinkedIn Profile", data.linkedin_url)
+
+        with st.expander("View Raw JSON"):
+            st.json(data.model_dump())
