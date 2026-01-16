@@ -5,6 +5,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 async def main():
     graph = build_reflection_agent()
+    # Optional: visualize the graph structure
+    graph.get_graph().draw_mermaid_png(output_file_path="graph.png")
 
     # initial user message
     init_messages = [
