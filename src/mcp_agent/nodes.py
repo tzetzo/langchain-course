@@ -1,10 +1,10 @@
-"""Graph node functions updated for MCP compatibility"""
+"""Graph node functions updated for MCP compatibility and Groq type-fixing"""
 import os
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import ToolMessage, SystemMessage
 from .state import AgentState
-from .mcp_client import mcp_client  # Ensure this import is correct
+from .mcp_client import mcp_client
 from .tools import create_langchain_tools_from_mcp
 
 load_dotenv()
@@ -16,15 +16,26 @@ llm = ChatGroq(
     temperature=0
 )
 
+# Define the System Instructions to fix the "String vs Number" hallucination
+SYSTEM_INSTRUCTIONS = SystemMessage(content=(
+    "You are a precise mathematical and weather assistant. "
+    "CRITICAL: When using the 'calculate' tool, you MUST pass the arguments 'a' and 'b' "
+    "as raw numbers (e.g., 10.5 or -5), NOT as strings (e.g., '10.5'). "
+    "If you must use a negative number, ensure it is a JSON number."
+))
+
 async def agent_node(state: AgentState) -> AgentState:
-    """Main agent node that uses LLM with MCP tools"""
-    # 1. Get MCP tools using the updated client method
-    # This uses the 'list_all_tools' alias we added to mcp_client.py
+    """Main agent node that uses LLM with MCP tools and system instructions"""
+    # 1. Get MCP tools
     tools = await create_langchain_tools_from_mcp()
     llm_with_tools = llm.bind_tools(tools)
     
-    # 2. Invoke LLM with current message history
-    response = await llm_with_tools.ainvoke(state["messages"])
+    # 2. Prepend system instructions to the message history
+    # This guides the LLM to use the correct types for Groq's validator
+    messages = [SYSTEM_INSTRUCTIONS] + state["messages"]
+    
+    # 3. Invoke LLM
+    response = await llm_with_tools.ainvoke(messages)
     
     return {"messages": [response]}
 
@@ -34,11 +45,6 @@ async def tool_node(state: AgentState) -> AgentState:
     new_messages = []
     
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        # 1. Get the list of tools
-        tools = await create_langchain_tools_from_mcp()
-        # 2. Map tools by their .name attribute (NOT subscriptable dictionary access)
-        tool_map = {tool.name: tool for tool in tools}
-        
         for tool_call in last_message.tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
@@ -46,14 +52,12 @@ async def tool_node(state: AgentState) -> AgentState:
             print(f"  --> Executing tool: {tool_name}")
             
             try:
-                # 3. ROUTE TO MCP: Use our custom call_tool method from mcp_client.py
+                # ROUTE TO MCP
                 result = await mcp_client.call_tool(tool_name, tool_args)
                 
-                # 4. PARSE RESULTS: Extract text blocks from the MCP response
-                # MCP results often come as a list of content blocks
+                # PARSE RESULTS
                 content = ""
                 if hasattr(result, 'content'):
-                    # MCP content blocks usually have a .text attribute
                     content = "\n".join([block.text for block in result.content if hasattr(block, 'text')])
                 else:
                     content = str(result)
@@ -77,7 +81,6 @@ def should_continue(state: AgentState) -> str:
     """Decide whether to continue to tools or end"""
     last_message = state["messages"][-1]
     
-    # Check if the AI wants to call tools
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
     
