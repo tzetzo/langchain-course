@@ -1,14 +1,15 @@
 # LangChain + MCP Multi-Server Agent
 
-This project demonstrates a powerful Agentic AI architecture using LangGraph to orchestrate multiple Model Context Protocol (MCP) servers. It features a Python-based intelligent agent that communicates with modular tool servers written in Node.js.
+This project demonstrates a powerful Agentic AI architecture using LangGraph to orchestrate multiple Model Context Protocol (MCP) servers. It features a Python-based intelligent agent that communicates with modular tool servers written in Node.js, accessible via a modern web interface.
 
 ## 🏗 Architecture Overview
 
 The system follows a hub-and-spoke model where the LangGraph agent acts as the "brain," delegating specific tasks to specialized "workers" (MCP servers).
 
 - **Orchestrator (Python)**: Uses LangGraph to manage conversation state and decision-making logic.
+- **Web UI (Chainlit)**: Provides a ChatGPT-like interface with real-time "Chain of Thought" visibility for tool execution.
 - **Transport (Stdio)**: The agent spawns Node.js servers as child processes and communicates via standard input/output.
-- **Tool Servers (Node.js)**: Specialized servers for weather data and mathematical calculations.
+- **Tool Servers (Node.js)**: Specialized servers for Real-time Weather (Open-Meteo) and Universal Calculations.
 
 ## 🚀 Getting Started
 
@@ -20,7 +21,7 @@ The system follows a hub-and-spoke model where the LangGraph agent acts as the "
 
 ### 1. Setup MCP Servers (Node.js)
 
-Navigate to your server directory (where `package.json` is located) and install dependencies:
+Navigate to your server directory and install dependencies:
 ```bash
 npm install
 ```
@@ -30,6 +31,7 @@ npm install
 Install the Python environment and dependencies:
 ```bash
 uv sync
+uv add chainlit
 ```
 
 ### 3. Configuration
@@ -41,40 +43,43 @@ GROQ_API_KEY=your_api_key_here
 
 ## 🎮 How to Run
 
-### Running the Interactive App
+### Option A: Web UI (Recommended)
 
-To start the agent and begin an interactive chat session in your terminal:
+Start the professional web interface. This provides the best experience, showing tool execution steps in real-time.
+```bash
+uv run chainlit run app_ui.py -w
+```
+
+Your app will be available at: http://localhost:8000
+
+### Option B: Terminal CLI
+
+To start a lightweight interactive session directly in your terminal:
 ```bash
 uv run python run.py
 ```
 
-Example queries to try:
-
-- "What is the weather in Sofia and what is 1024 divided by 4?"
-- "If the temperature in London is 15 degrees, what would it be if I multiplied it by 3?"
-
 ### Running the Tests
 
-To verify the Python-to-Node.js bridge and ensure the graph logic is sound:
+To verify the Python-to-Node.js bridge and tool reliability:
 ```bash
 uv run pytest tests/test_graph.py
 ```
 
 ## 💡 How It Works
 
-1. **Initialization**: The Python agent spawns Node.js processes. On Windows, it uses the `ProactorEventLoop` to manage these asynchronous pipes safely.
+1. **Initialization**: The Python agent spawns Node.js processes. On Windows, it uses the `ProactorEventLoop` to manage asynchronous pipes safely.
 
-2. **Tool Discovery**: The agent queries each MCP server for its tool definitions and binds them to the LLM (Groq).
+2. **Tool Discovery**: The agent queries each MCP server for its tool definitions and binds them to the LLM (Groq) using a specialized System Message to ensure high-quality tool calls.
 
 3. **The Reasoning Loop**:
    - The LLM receives a query and decides which tool to call.
-   - The MCP client sends a JSON-RPC request to the Node.js server.
-   - **Type Coercion**: The Node.js server uses `z.coerce.number()` to ensure that even if the LLM sends a number as a string (e.g., `"42"`), the math logic processes it correctly.
-   - The result is returned to the LLM to provide a final answer.
+   - **Type Safety**: To support the Groq API's strict validation, the Calculator server uses a Flexible Zod Schema (`z.any()` + transform) to handle cases where the LLM might send numbers as strings.
+   - **Live Data**: The Weather server fetches real-time data from the Open-Meteo API using geocoding.
 
 ## 🔧 Windows-Specific Handling
 
-This project includes specific optimizations for Windows environments:
+This project includes optimizations for Windows environments:
 
-- **Proactor Event Loop**: Configured via `asyncio.WindowsProactorEventLoopPolicy` to prevent "Operation not supported" errors when handling subprocess pipes.
-- **Graceful Shutdown**: Uses an `ExitStack` to ensure that when the Python app stops, the Node.js background processes are cleaned up properly.
+- **Proactor Event Loop**: Configured via `asyncio.WindowsProactorEventLoopPolicy()` to prevent "Operation not supported" errors when handling subprocess pipes.
+- **Process Cleanup**: Explicit shutdown logic in `mcp_client.py` ensures Node.js child processes are terminated when the UI or CLI stops.
