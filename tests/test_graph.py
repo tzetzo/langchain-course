@@ -1,5 +1,6 @@
 """Test the MCP agent graph with Node.js backend servers"""
 import pytest
+import re
 import pytest_asyncio
 from src.mcp_agent.graph import app, initialize_mcp_servers
 from src.mcp_agent.mcp_client import mcp_client
@@ -17,16 +18,17 @@ async def setup_mcp():
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_weather_query(setup_mcp):
-    """Test weather information query"""
+    """Test real weather information query"""
     result = await app.ainvoke({
-        "messages": [{"role": "user", "content": "What's the weather in Sofia? Answer only with the temperature."}]
+        "messages": [{"role": "user", "content": "What's the weather in Sofia?"}]
     })
     
-    # Let's look for the result in any of the messages, not just the last one
-    all_content = " ".join([m.content for m in result["messages"] if isinstance(m.content, str)])
+    response = result["messages"][-1].content
+    print(f"DEBUG Response: {response}")
     
-    # Check if the tool was at least triggered or the value 22 appears
-    assert "22" in all_content or "sunny" in all_content.lower()
+    # Check that it recognized Sofia and returned a numeric temperature
+    assert "sofia" in response.lower()
+    assert any(char.isdigit() for char in response), "Response should contain a temperature value"
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_calculator_query(setup_mcp):
