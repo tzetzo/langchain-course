@@ -10,21 +10,28 @@ const server = new McpServer({
 server.registerTool(
     "calculate",
     {
-        title: "Addition Tool",
-        description: "Perform a simple addition of two numbers",
+        title: "Universal Calculator",
+        description: "Perform basic arithmetic: add, subtract, multiply, or divide",
         inputSchema: { 
-            // Use z.coerce.number() to handle strings sent by the LLM
             a: z.coerce.number().describe("First number"), 
-            b: z.coerce.number().describe("Second number") 
+            b: z.coerce.number().describe("Second number"),
+            operation: z.enum(["add", "subtract", "multiply", "divide"])
+                        .describe("The math operation to perform")
         }
     },
-    async ({ a, b }) => {
-        // Now 'a' and 'b' are guaranteed to be numbers
+    async ({ a, b, operation }) => {
+        let result;
+        switch (operation) {
+            case "add": result = a + b; break;
+            case "subtract": result = a - b; break;
+            case "multiply": result = a * b; break;
+            case "divide": 
+                if (b === 0) return { isError: true, content: [{ type: "text", text: "Error: Division by zero" }] };
+                result = a / b; 
+                break;
+        }
         return {
-            content: [{ 
-                type: "text", 
-                text: String(a + b) 
-            }]
+            content: [{ type: "text", text: String(result) }]
         };
     }
 );
