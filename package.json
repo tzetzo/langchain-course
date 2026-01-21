@@ -1,0 +1,28 @@
+{
+  "name": "langchain-mcp",
+  "version": "1.0.0",
+  "description": "```markdown\r # MCP LangGraph Application",
+  "main": "index.js",
+  "type": "module",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tzetzo/langchain-course.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tzetzo/langchain-course/issues"
+  },
+  "homepage": "https://github.com/tzetzo/langchain-course#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.3",
+    "zod": "^4.3.5"
+  }
+}
